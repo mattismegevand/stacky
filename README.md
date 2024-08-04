@@ -7,7 +7,7 @@ features:
 
 usage:
 - launch a debugging session
-- while stopped on a breakpoint launch a chat with stacky using `@stacky` and provide the command along with the prompt: `@stacky /debug <error message/description of bug>` 
+- while stopped on a breakpoint launch a chat with stacky using `@stacky` and provide the command along with the prompt: `@stacky /debug <error message/description of bug>`
 
 planned features:
 - suggest breakpoints

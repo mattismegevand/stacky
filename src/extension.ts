@@ -79,14 +79,12 @@ async function getVariables(session: vscode.DebugSession, scopes: ScopesResponse
 async function getStackTraceContext(maxStacks = 3, maxVariables = 5): Promise<string> {
   const session = vscode.debug.activeDebugSession;
   if (session === undefined) {
-    vscode.window.showInformationMessage('stacky: No active debug session.');
-    return '';
+        return '';
   }
   const threadId = vscode.debug?.activeStackItem?.threadId;
   const frameId = (vscode.debug?.activeStackItem as vscode.DebugStackFrame)?.frameId;
   if (threadId === undefined || frameId === undefined) {
-    vscode.window.showInformationMessage('stacky: No active stack frame.');
-    return '';
+        return '';
   }
   const traces: StackTraceResponse = await session.customRequest('stackTrace', {threadId: threadId});
   let i = 0;
@@ -120,7 +118,7 @@ async function getStackTraceContext(maxStacks = 3, maxVariables = 5): Promise<st
 export function activate(context: vscode.ExtensionContext) {
   const handler: vscode.ChatRequestHandler = async (
     request: vscode.ChatRequest,
-    context: vscode.ChatContext,
+    chatContext: vscode.ChatContext,
     stream: vscode.ChatResponseStream,
     token: vscode.CancellationToken,
   ): Promise<StackyChatResult> => {
@@ -138,10 +136,14 @@ export function activate(context: vscode.ExtensionContext) {
             model,
           );
 
+          if (stackTraceContext === '') {
+            stream.markdown('Make sure you are in a debugging session to use this command.');
+          } else {
           const chatResponse = await model.sendRequest(messages, {}, token);
           for await (const fragment of chatResponse.text) {
             stream.markdown(fragment);
           }
+        }
         }
       } catch (err) {
         handleError(logger, err, stream);
@@ -157,7 +159,7 @@ export function activate(context: vscode.ExtensionContext) {
         const [model] = await vscode.lm.selectChatModels(MODEL_SELECTOR);
         if (model) {
           const messages = [
-            vscode.LanguageModelChatMessage.Assistant(
+            vscode.LanguageModelChatMessage.User(
               `You are a debugger assistant. Answer the following questions based on the information given by the user:`,
             ),
             vscode.LanguageModelChatMessage.User(request.prompt),
@@ -180,17 +182,6 @@ export function activate(context: vscode.ExtensionContext) {
   stacky.iconPath = {
     light: vscode.Uri.joinPath(context.extensionUri, 'icon_light.png'),
     dark: vscode.Uri.joinPath(context.extensionUri, 'icon_dark.png'),
-  };
-  stacky.followupProvider = {
-    provideFollowups(result: StackyChatResult, context: vscode.ChatContext, token: vscode.CancellationToken) {
-      return [
-        {
-          prompt: 'let us play',
-          label: vscode.l10n.t('Play with the cat'),
-          command: 'play',
-        } satisfies vscode.ChatFollowup,
-      ];
-    },
   };
 
   // TODO: add real code to capture events and errors
