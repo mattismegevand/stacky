@@ -3,11 +3,12 @@
   "publisher": "mattismegevand",
   "displayName": "stacky",
   "description": "Debugging Copilot for VS Code",
+  "icon": "icon_light.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/mattismegevand/stacky"
   },
-  "version": "0.1.0",
+  "version": "0.1.1",
   "engines": {
     "vscode": "^1.92.0"
   },
