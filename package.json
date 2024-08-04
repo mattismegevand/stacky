@@ -1,0 +1,68 @@
+{
+  "name": "stacky",
+  "publisher": "mattismegevand",
+  "displayName": "stacky",
+  "description": "Debugging Copilot for VS Code",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mattismegevand/stacky"
+  },
+  "version": "0.1.0",
+  "engines": {
+    "vscode": "^1.92.0"
+  },
+  "categories": [
+    "AI",
+    "Chat"
+  ],
+  "activationEvents": [],
+  "contributes": {
+    "chatParticipants": [
+      {
+        "id": "stacky.stacky",
+        "fullName": "stacky",
+        "name": "stacky",
+        "description": "Debugging Copilot for VS Code",
+        "isSticky": true,
+        "commands": [
+          {
+            "name": "debug",
+            "description": "dpaldpalp"
+          },
+          {
+            "name": "teach",
+            "description": "Pick at random a computer science concept then explain it in purfect way of a cat"
+          },
+          {
+            "name": "play",
+            "description": "Do whatever you want, you are a cat after all"
+          }
+        ]
+      }
+    ],
+    "commands": [
+      {
+        "command": "cat.namesInEditor",
+        "title": "Use Cat Names in Editor"
+      }
+    ]
+  },
+  "main": "./out/extension.js",
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "lint": "eslint \"src/**/*.ts\"",
+    "watch": "tsc -watch -p ./"
+  },
+  "dependencies": {
+    "@vscode/prompt-tsx": "^0.2.3-alpha"
+  },
+  "devDependencies": {
+    "@types/node": "^20.5.9",
+    "@types/vscode": "1.90.0",
+    "@typescript-eslint/eslint-plugin": "^7.14.0",
+    "@typescript-eslint/parser": "^7.14.0",
+    "eslint": "^8.26.0",
+    "typescript": "^5.5.2"
+  }
+}
