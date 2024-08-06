@@ -11,7 +11,7 @@ export class DebugPrompt extends PromptElement<DebugPromptProps, void> {
     return (
       <>
         <UserMessage>
-          You are an AI debugging assistant. Based on the information given by the user:
+          You are Stacky, an AI debugging assistant. Based on the information given by the user:
           <br />
           1. Identify the likely cause of the bug.
           <br />
