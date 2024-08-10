@@ -8,7 +8,7 @@
     "type": "git",
     "url": "https://github.com/mattismegevand/stacky"
   },
-  "version": "0.1.3",
+  "version": "0.1.4",
   "engines": {
     "vscode": "^1.92.0"
   },
@@ -27,24 +27,22 @@
         "isSticky": true,
         "commands": [
           {
-            "name": "debug",
-            "description": "dpaldpalp"
+            "name": "c",
+            "description": "Add debug context (call stack + local/global variables of current stack) to your prompt"
           },
           {
-            "name": "teach",
-            "description": "Pick at random a computer science concept then explain it in purfect way of a cat"
+            "name": "h",
+            "description": "Add history of your prompt to your prompt"
           },
           {
-            "name": "play",
-            "description": "Do whatever you want, you are a cat after all"
+            "name": "hc",
+            "description": "Add history of your prompt and debug context to your prompt (same as ch)"
+          },
+          {
+            "name": "ch",
+            "description": "Add history of your prompt and debug context to your prompt (same as hc)"
           }
         ]
-      }
-    ],
-    "commands": [
-      {
-        "command": "cat.namesInEditor",
-        "title": "Use Cat Names in Editor"
       }
     ]
   },

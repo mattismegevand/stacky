@@ -1,15 +1,9 @@
 import {renderPrompt} from '@vscode/prompt-tsx';
 import * as vscode from 'vscode';
-import {DebugPrompt} from './prompt';
+import {StackyPrompt} from './prompt';
 import {ScopesResponse, StackFrame, StackTraceResponse, VariablesResponse} from './dap';
 
 const MODEL_SELECTOR: vscode.LanguageModelChatSelector = {vendor: 'copilot', family: 'gpt-4o'};
-
-interface StackyChatResult extends vscode.ChatResult {
-  metadata: {
-    command: string;
-  };
-}
 
 interface CodeContext {
   start: number;
@@ -77,7 +71,7 @@ async function getVariables(session: vscode.DebugSession, scopes: ScopesResponse
 }
 
 // TODO: find right value for maxStacks and maxVariables depending on token budget
-async function getStackTraceContext(maxStacks = 5, maxVariables = 10): Promise<string> {
+async function getDebugContext(maxStacks = 5, maxVariables = 10): Promise<string> {
   const session = vscode.debug.activeDebugSession;
   if (session === undefined) {
     return '';
@@ -94,7 +88,7 @@ async function getStackTraceContext(maxStacks = 5, maxVariables = 10): Promise<s
   const variables = await getVariables(session, scopes);
   for (const trace of traces.stackFrames) {
     // a line is on average 90 chars ~= 30 tokens
-    const stackItem = await getStackItem(trace, 8192 / (maxStacks * 30));
+    const stackItem = await getStackItem(trace, Math.ceil(8192 / (maxStacks * 30)));
 
     out += `\nStack Frame ${i + 1} "${stackItem.fn}" in "${stackItem.file}:"\n`;
     if (trace.id === frameId) {
@@ -121,15 +115,13 @@ function exportHistory(history: ReadonlyArray<vscode.ChatRequestTurn | vscode.Ch
   // TODO: extract only the relevant information from the history
   let out = '';
   let i = history.length - 1;
-  // 8192 * 3 is a rule of thumb for the max length of the message
-  while (i >= 0 && out.length < 8192 * 3) {
+  for (let i = history.length - 1; i >= 0; i--) {
     const message = history[i];
     if (message instanceof vscode.ChatResponseTurn && message.response[0]?.value instanceof vscode.MarkdownString) {
       out += `Stacky: ${message.response[0].value.value}\n`;
     } else if (message instanceof vscode.ChatRequestTurn) {
       out += `User: ${message.command ? '/' + message.command : ''} ${message.prompt}\n`;
     }
-    i--;
   }
   return out;
 }
@@ -140,65 +132,51 @@ export function activate(context: vscode.ExtensionContext) {
     chatContext: vscode.ChatContext,
     stream: vscode.ChatResponseStream,
     token: vscode.CancellationToken,
-  ): Promise<StackyChatResult> => {
-    // TODO: currently history is not used we should use it, especially with request without commands
+  ): Promise<void> => {
     stream.progress('Thinking...');
-    if (request.command === 'debug') {
-      const stackTraceContext = await getStackTraceContext();
-      try {
-        const [model] = await vscode.lm.selectChatModels(MODEL_SELECTOR);
-        if (model) {
-          const {messages} = await renderPrompt(
-            DebugPrompt,
-            {bugDesc: request.prompt, stackTrace: stackTraceContext},
-            {modelMaxPromptTokens: model.maxInputTokens},
-            model,
-          );
-          if (stackTraceContext === '') {
-            stream.markdown('Make sure you are in a debugging session to use this command.');
-          } else {
-            const chatResponse = await model.sendRequest(messages, {}, token);
-            for await (const fragment of chatResponse.text) {
-              stream.markdown(fragment);
-            }
-          }
-        }
-      } catch (err) {
-        handleError(logger, err, stream);
-      }
-      logger.logUsage('request', {kind: 'debug'});
-      return {metadata: {command: 'breakpoint'}};
-    } else if (request.command === 'breakpoint') {
-      // TODO: implement breakpoint command
-      //       retrieve opened files and their imports with history in order to find good breakpoints
-      //       if breakpoints preds are really good we could add them automatically
-      // const uri = vscode.Uri.parse("vscode://file/PATH:LINE");
-      // stream.reference(uri);
-      logger.logUsage('request', {kind: 'breakpoint'});
-      return {metadata: {command: 'debug'}};
-    } else {
-      const history = exportHistory(chatContext.history);
-      try {
-        const [model] = await vscode.lm.selectChatModels(MODEL_SELECTOR);
-        if (model) {
-          const messages = [
-            vscode.LanguageModelChatMessage.User(
-              `You are Stacky, an AI debugging assistant. Answer the following questions based on the information given by the user, and provide debugging advice. History: ${history}\n`,
-            ),
-            vscode.LanguageModelChatMessage.User(request.prompt),
-          ];
+    const validCommands = ['c', 'h', 'ch', 'hc'];
+    if (request.command === undefined || !validCommands.includes(request.command)) {
+      stream.markdown(`Invalid command. Please use one of the following:
+-  \`/c\`: Use debug context only
+- \`/h\`: Use chat history only
+- \`/ch\` or \`/hc\`: Use both debug context and chat history
 
-          const chatResponse = await model.sendRequest(messages, {}, token);
-          for await (const fragment of chatResponse.text) {
-            stream.markdown(fragment);
-          }
-        }
-      } catch (err) {
-        handleError(logger, err, stream);
-      }
-      logger.logUsage('request', {kind: ''});
-      return {metadata: {command: ''}};
+Followed by your question or prompt.`);
+      return;
     }
+    if (!request.prompt) {
+      stream.markdown(`Please provide a prompt after the command. For example:
+- "\`/c\` What's causing the null pointer exception?"
+- "\`/h\` Can you explain the previous solution again?"
+- "\`/ch\` Why is my loop not terminating?"`);
+      return;
+    }
+
+    let debugContext, history;
+    if (request.command.includes('c')) {
+      debugContext = await getDebugContext();
+    }
+    if (request.command.includes('h')) {
+      history = exportHistory(chatContext.history);
+    }
+    try {
+      const [model] = await vscode.lm.selectChatModels(MODEL_SELECTOR);
+      if (model) {
+        const {messages} = await renderPrompt(
+          StackyPrompt,
+          {userPrompt: request.prompt, debugContext: debugContext, history: history},
+          {modelMaxPromptTokens: model.maxInputTokens},
+          model,
+        );
+        const chatResponse = await model.sendRequest(messages, {}, token);
+        for await (const fragment of chatResponse.text) {
+          stream.markdown(fragment);
+        }
+      }
+    } catch (err) {
+      handleError(logger, err, stream);
+    }
+    logger.logUsage('request', {kind: ''});
   };
 
   const stacky = vscode.chat.createChatParticipant('stacky.stacky', handler);
