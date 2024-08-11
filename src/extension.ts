@@ -1,9 +1,12 @@
-import {renderPrompt} from '@vscode/prompt-tsx';
 import * as vscode from 'vscode';
+import {Scope, ScopesResponse, StackFrame, StackTraceResponse, VariablesResponse} from './dap';
 import {StackyPrompt} from './prompt';
-import {ScopesResponse, StackFrame, StackTraceResponse, VariablesResponse} from './dap';
+import {renderPrompt} from '@vscode/prompt-tsx';
 
-const MODEL_SELECTOR: vscode.LanguageModelChatSelector = {vendor: 'copilot', family: 'gpt-4o'};
+const MODEL_SELECTOR: vscode.LanguageModelChatSelector = {
+  vendor: 'copilot',
+  family: vscode.workspace.getConfiguration('stacky').get('model') || 'gpt-4o',
+};
 
 interface CodeContext {
   start: number;
@@ -54,8 +57,8 @@ interface Variables {
 
 // TODO: we might want to filter some variables, check how to find the most relevant ones (Copilot use Jaccard?)
 async function getVariables(session: vscode.DebugSession, scopes: ScopesResponse): Promise<Variables> {
-  const localScope = scopes.scopes.find((s: any) => s.name.toLowerCase().includes('local'));
-  const globalScope = scopes.scopes.find((s: any) => s.name.toLowerCase().includes('global'));
+  const localScope = scopes.scopes.find((s: Scope) => s.name.toLowerCase().includes('local'));
+  const globalScope = scopes.scopes.find((s: Scope) => s.name.toLowerCase().includes('global'));
   const localVariables: VariablesResponse | undefined =
     localScope !== undefined
       ? await session.customRequest('variables', {variablesReference: localScope.variablesReference})
@@ -71,7 +74,10 @@ async function getVariables(session: vscode.DebugSession, scopes: ScopesResponse
 }
 
 // TODO: find right value for maxStacks and maxVariables depending on token budget
-async function getDebugContext(maxStacks = 5, maxVariables = 10): Promise<string> {
+async function getDebugContext(
+  model: vscode.LanguageModelChat | undefined = undefined,
+  grabVars = true,
+): Promise<string> {
   const session = vscode.debug.activeDebugSession;
   if (session === undefined) {
     return '';
@@ -86,21 +92,29 @@ async function getDebugContext(maxStacks = 5, maxVariables = 10): Promise<string
   let out = '';
   const scopes: ScopesResponse = await session.customRequest('scopes', {frameId: frameId});
   const variables = await getVariables(session, scopes);
+
+  const maxInputTokens = model?.maxInputTokens ?? 4096;
+  const config = vscode.workspace.getConfiguration('stacky');
+  const maxStacks: number | undefined = config.get('debugContextMaxStacks') || 5;
+  const maxVars: number | undefined = config.get('debugContextMaxVars') || 10;
+
   for (const trace of traces.stackFrames) {
     // a line is on average 90 chars ~= 30 tokens
-    const stackItem = await getStackItem(trace, Math.ceil(8192 / (maxStacks * 30)));
-
+    const stackItem = await getStackItem(trace, Math.ceil(maxInputTokens / (maxStacks * 30)));
     out += `\nStack Frame ${i + 1} "${stackItem.fn}" in "${stackItem.file}:"\n`;
-    if (trace.id === frameId) {
-      out += 'Local Variables:\n';
+
+    if (grabVars && maxVars > 0 && trace.id === frameId) {
+      out += '\nLocal Variables:\n';
       let j = 0;
       for (const variable of variables.local?.variables ?? []) {
         out += `${variable.name} = ${variable.value}\n`;
-        if (++j >= maxVariables) {
+        if (++j >= maxVars) {
           break;
         }
       }
+      out += '\n';
     }
+
     if (stackItem.context !== undefined) {
       out += '```\n' + stackItem.context.code + '\n```\n';
     }
@@ -111,10 +125,15 @@ async function getDebugContext(maxStacks = 5, maxVariables = 10): Promise<string
   return out.trim();
 }
 
+async function copyDebugContext(grabVars = true): Promise<void> {
+  const [model] = await vscode.lm.selectChatModels(MODEL_SELECTOR);
+  const debugContext = await getDebugContext(model, grabVars);
+  vscode.env.clipboard.writeText(debugContext);
+}
+
 function exportHistory(history: ReadonlyArray<vscode.ChatRequestTurn | vscode.ChatResponseTurn>): string {
   // TODO: extract only the relevant information from the history
   let out = '';
-  let i = history.length - 1;
   for (let i = history.length - 1; i >= 0; i--) {
     const message = history[i];
     if (message instanceof vscode.ChatResponseTurn && message.response[0]?.value instanceof vscode.MarkdownString) {
@@ -127,6 +146,10 @@ function exportHistory(history: ReadonlyArray<vscode.ChatRequestTurn | vscode.Ch
 }
 
 export function activate(context: vscode.ExtensionContext) {
+  let api = {
+    getDebugContext,
+  };
+
   const handler: vscode.ChatRequestHandler = async (
     request: vscode.ChatRequest,
     chatContext: vscode.ChatContext,
@@ -152,15 +175,16 @@ Followed by your question or prompt.`);
       return;
     }
 
+    const [model] = await vscode.lm.selectChatModels(MODEL_SELECTOR);
+
     let debugContext, history;
     if (request.command.includes('c')) {
-      debugContext = await getDebugContext();
+      debugContext = await getDebugContext(model);
     }
     if (request.command.includes('h')) {
       history = exportHistory(chatContext.history);
     }
     try {
-      const [model] = await vscode.lm.selectChatModels(MODEL_SELECTOR);
       if (model) {
         const {messages} = await renderPrompt(
           StackyPrompt,
@@ -202,6 +226,13 @@ Followed by your question or prompt.`);
       });
     }),
   );
+
+  context.subscriptions.push(vscode.commands.registerCommand('stacky.copyDebugContext', copyDebugContext));
+  context.subscriptions.push(
+    vscode.commands.registerCommand('stacky.copyDebugContextNoVars', () => copyDebugContext(false)),
+  );
+
+  return api;
 }
 
 function handleError(logger: vscode.TelemetryLogger, err: any, stream: vscode.ChatResponseStream): void {

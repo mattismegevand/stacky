@@ -1,7 +1,7 @@
-import {TextChunk, BasePromptElementProps, PromptElement, PromptSizing, UserMessage} from '@vscode/prompt-tsx';
+import {BasePromptElementProps, PromptElement, PromptSizing, TextChunk, UserMessage} from '@vscode/prompt-tsx';
 
 export interface StackyPromptProps extends BasePromptElementProps {
-  userPrompt: string;
+  userPrompt?: string;
   debugContext?: string;
   history?: string;
 }
@@ -14,9 +14,11 @@ export class StackyPrompt extends PromptElement<StackyPromptProps, void> {
           You are Stacky, an AI debugging assistant. Based on the context you are provided answer the user question.
           Respond in a clear, concise manner suitable for display in an IDE.
         </UserMessage>
-        <UserMessage priority={300}>
-          <TextChunk breakOn=" ">User Prompt: {this.props.userPrompt.trim()}</TextChunk>
-        </UserMessage>
+        {(this.props.userPrompt && (
+          <UserMessage priority={300}>
+            <TextChunk breakOn=" ">User Prompt: {this.props.userPrompt.trim()}</TextChunk>
+          </UserMessage>
+        )) || <></>}
         {(this.props.debugContext && (
           <UserMessage priority={200}>
             <TextChunk breakOn=" ">Debug Context: {this.props.debugContext}</TextChunk>

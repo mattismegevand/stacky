@@ -8,7 +8,7 @@
     "type": "git",
     "url": "https://github.com/mattismegevand/stacky"
   },
-  "version": "0.1.4",
+  "version": "0.1.5",
   "engines": {
     "vscode": "^1.92.0"
   },
@@ -18,6 +18,43 @@
   ],
   "activationEvents": [],
   "contributes": {
+    "configuration": {
+      "title": "stacky",
+      "properties": {
+        "stacky.model": {
+          "type": "string",
+          "default": "gpt-4o",
+          "enum": [
+            "gpt-4o",
+            "gpt-4",
+            "gpt-3.5-turbo"
+          ],
+          "description": "Language model used by stacky"
+        },
+        "stacky.debugContextMaxStack": {
+          "type": "number",
+          "default": 5,
+          "description": "Max number of stack frames to include in debug context"
+        },
+        "stacky.debugContextMaxVars": {
+          "type": "number",
+          "default": 10,
+          "description": "Max number of variables to include in debug context"
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "stacky.copyDebugContext",
+        "title": "stacky: Copy debug context to clipboard",
+        "enablement": "debugState == 'stopped'"
+      },
+      {
+        "command": "stacky.copyDebugContextNoVars",
+        "title": "stacky: Copy debug context without vars to clipboard",
+        "enablement": "debugState == 'stopped'"
+      }
+    ],
     "chatParticipants": [
       {
         "id": "stacky.stacky",
