@@ -1,4 +1,4 @@
-import {BasePromptElementProps, PromptElement, PromptSizing, TextChunk, UserMessage} from '@vscode/prompt-tsx';
+import { BasePromptElementProps, PromptElement, PromptSizing, TextChunk, UserMessage } from '@vscode/prompt-tsx';
 
 export interface StackyPromptProps extends BasePromptElementProps {
   userPrompt?: string;
@@ -20,9 +20,23 @@ export class StackyPrompt extends PromptElement<StackyPromptProps, void> {
           </UserMessage>
         )) || <></>}
         {(this.props.debugContext && (
-          <UserMessage priority={200}>
-            <TextChunk breakOn=" ">Debug Context: {this.props.debugContext}</TextChunk>
-          </UserMessage>
+          <>
+            <UserMessage priority={250}>
+              Analyze the provided debug context. Focus on the current stack frame, variables, and code snippet to identify potential issues.
+            </UserMessage>
+            <UserMessage priority={200}>
+              <TextChunk breakOn=" ">Debug Context: {this.props.debugContext}</TextChunk>
+            </UserMessage>
+            <UserMessage priority={250}>
+              Structure your response as follows:
+              1. Brief summary of the identified issue (1-2 sentences)
+              2. Detailed explanation (2-3 bullet points)
+              3. Suggested fix or next debugging steps (1-2 sentences)
+              If you don't have enough information provide advice on what additional information you need.
+              You can also suggest other breakpoints to get more information.
+              Use markdown formatting for code snippets or important terms.
+            </UserMessage>
+          </>
         )) || <></>}
         {(this.props.history && (
           <UserMessage priority={100}>

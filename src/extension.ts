@@ -16,17 +16,23 @@ interface CodeContext {
 
 // TODO: decrease context as the current frame is further away
 function extractCodeContext(code: Uint8Array, line: number, contextSize: number): CodeContext {
-  let start = line - contextSize;
-  let end = line + contextSize;
-  if (start < 0) {
-    end -= start;
-    start = 0;
-  }
-  code.toString().split(/\r?\n/).slice(start, end).join('\n');
+  let start = Math.max(0, line - contextSize);
+  let end = Math.min(line + contextSize, code.length);
+  const lines = code.toString().split(/\r?\n/);
+  const contextLines = lines.slice(start, end);
+
+  const lineNumberWidth = end.toString().length;
+
+  const numberedLines = contextLines.map((lineContent, index) => {
+    const lineNumber = start + index + 1;
+    const isCurrentLine = lineNumber === line;
+    return `${lineNumber.toString().padStart(lineNumberWidth, ' ')}${isCurrentLine ? '>' : ' '} | ${lineContent}`;
+  });
+
   return {
-    start: start,
+    start: start + 1,
     end: end,
-    code: code.toString().split(/\r?\n/).slice(start, end).join('\n'),
+    code: numberedLines.join('\n'),
   };
 }
 
